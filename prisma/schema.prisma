@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  UNIVERSITY_REP
+  BURSARY_REP
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  role          Role           @default(STUDENT)
+  firstName     String
+  lastName      String
+  university    String?
+  year          String?
+  field         String?
+  bio           String?
+  interests     String[]
+  avatarUrl     String?
+  isVerified    Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  profile       Profile?
+  applications  Application[]
+  threads       Thread[]
+  replies       Reply[]
+  likes         ThreadLike[]
+  resources     Resource[]
+  eventRsvps    EventRsvp[]
+  connections   Connection[]  @relation("UserA")
+  sentMessages  Message[]    @relation("Sender")
+  recvMessages  Message[]    @relation("Receiver")
+}
+
+model Profile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+  // Additional profile fields can go here
+}
+
+// --- University Application Module ---
+
+model University {
+  id           String                  @id @default(uuid())
+  name         String
+  location     String
+  description  String
+  website      String
+  requirements UniversityRequirement[]
+  applications Application[]
+}
+
+model UniversityRequirement {
+  id            String     @id @default(uuid())
+  universityId  String
+  university    University @relation(fields: [universityId], references: [id])
+  criterion     String     // e.g., "Minimum APS: 28"
+  isMandatory   Boolean    @default(true)
+}
+
+// --- Bursary Application Module ---
+
+model Bursary {
+  id           String         @id @default(uuid())
+  provider     String         // e.g., "NSFAS"
+  title        String
+  amount       String
+  deadline     DateTime
+  description  String
+  requirements String         // Detailed text or JSON
+  applications Application[]
+}
+
+// --- Unified Application System ---
+
+enum ApplicationType {
+  UNIVERSITY
+  BURSARY
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Application {
+  id              String          @id @default(uuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  type            ApplicationType
+
+  universityId    String?
+  university      University?    @relation(fields: [universityId], references: [id])
+  bursaryId       String?
+  bursary         Bursary?        @relation(fields: [bursaryId], references: [id])
+
+  status          ApplicationStatus @default(PENDING)
+  submittedAt     DateTime        @default(now())
+
+  // Array of { name: string, url: string }
+  documents       Json
+}
+
+// --- Original Core Features ---
+
+model Thread {
+  id        String   @id @default(uuid())
+  title     String
+  body      String
+  category  String
+  isPinned  Boolean  @default(false)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  replies   Reply[]
+  likes     ThreadLike[]
+  createdAt DateTime @default(now())
+}
+
+model Reply {
+  id        String   @id @default(uuid())
+  body      String
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model ThreadLike {
+  userId   String
+  threadId String
+  user     User   @relation(fields: [userId], references: [id])
+  thread   Thread @relation(fields: [threadId], references: [id])
+
+  @@id([userId, threadId])
+}
+
+model Resource {
+  id         String   @id @default(uuid())
+  title      String
+  category   String
+  subject    String
+  university String
+  type       String   // PDF, DOCX, etc.
+  fileUrl    String
+  fileSize   Int
+  uploaderId String
+  uploader   User     @relation(fields: [uploaderId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  category    String
+  university  String
+  date        DateTime
+  time        String
+  location    String
+  description String
+  organiser    String
+  organiserId String
+  rsvps       EventRsvp[]
+  createdAt   DateTime @default(now())
+}
+
+model EventRsvp {
+  userId   String
+  eventId  String
+  user     User   @relation(fields: [userId], references: [id])
+  event    Event  @relation(fields: [eventId], references: [id])
+
+  @@id([userId, eventId])
+}
+
+model Connection {
+  id      String @id @default(uuid())
+  status  String // pending, connected
+  userAId String
+  userBId String
+  userA   User   @relation("UserA", fields: [userAId], references: [id])
+  userB   User   @relation("UserB", fields: [userBId], references: [id])
+
+  @@unique([userAId, userBId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  body       String
+  read       Boolean  @default(false)
+  senderId   String
+  sender     User     @relation("Sender", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
+  createdAt  DateTime @default(now())
+}
